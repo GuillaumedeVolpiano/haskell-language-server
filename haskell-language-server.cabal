@@ -1596,13 +1596,13 @@ flag refactor
   manual:      True
 
 common refactor
-  if flag(refactor) && (impl(ghc < 9.11) || flag(ignore-plugins-ghc-bounds))
+  if flag(refactor) 
     build-depends: haskell-language-server:hls-refactor-plugin
     cpp-options: -Dhls_refactor
 
 library hls-refactor-plugin
   import:           defaults, pedantic, warnings
-  if !flag(refactor) || (impl(ghc > 9.11) && !flag(ignore-plugins-ghc-bounds))
+  if !flag(refactor) -- || (impl(ghc > 9.11) && !flag(ignore-plugins-ghc-bounds))
     buildable: False
   exposed-modules:  Development.IDE.GHC.ExactPrint
                     Development.IDE.GHC.Compat.ExactPrint
@@ -1661,7 +1661,7 @@ library hls-refactor-plugin
 
 test-suite hls-refactor-plugin-tests
   import:           defaults, pedantic, test-defaults, warnings
-  if !flag(refactor) || (impl(ghc > 9.11) && !flag(ignore-plugins-ghc-bounds))
+  if !flag(refactor)
     buildable: False
   type:             exitcode-stdio-1.0
   hs-source-dirs:   plugins/hls-refactor-plugin/test

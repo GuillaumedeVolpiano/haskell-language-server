@@ -69,8 +69,7 @@ import           Development.IDE.Types.Diagnostics
 import           Development.IDE.Types.Exports
 import           Development.IDE.Types.Location
 import           Development.IDE.Types.Options
-import           GHC                                               (AddEpAnn (AddEpAnn),
-                                                                    AnnsModule (am_main),
+import           GHC                                               (
                                                                     DeltaPos (..),
                                                                     EpAnn (..),
                                                                     LEpaComment)
@@ -105,17 +104,30 @@ import           Text.Regex.TDFA                                   ((=~), (=~~))
 
 #if !MIN_VERSION_ghc(9,9,0)
 import           Development.IDE.GHC.Compat.ExactPrint             (makeDeltaAst)
-import           GHC                                               (Anchor (anchor_op),
+import           GHC                                               (AddEpAnn (AddEpAnn),
+                                                                    AnnsModule (am_main),
+                                                                    Anchor (anchor_op),
                                                                     AnchorOperation (..),
                                                                     EpaLocation (..))
 #endif
 
-#if MIN_VERSION_ghc(9,9,0)
-import           GHC                                               (EpaLocation,
+#if MIN_VERSION_ghc(9,9,0) && !MIN_VERSION_ghc(9,11,0)
+import           GHC                                               (AddEpAnn (AddEpAnn),
+                                                                    AnnsModule (am_main),
+                                                                    EpaLocation,
                                                                     EpaLocation' (..),
                                                                     HasLoc (..))
 import           GHC.Types.SrcLoc                                  (srcSpanToRealSrcSpan)
 #endif
+#if MIN_VERSION_ghc(9,11,0)
+import           GHC                                               (EpaLocation,
+                                                                    AnnsModule (am_where),
+                                                                    EpaLocation' (..),
+                                                                    HasLoc (..),
+                                                                    EpToken (..))
+import           GHC.Types.SrcLoc                                  (srcSpanToRealSrcSpan)
+#endif
+
 
 -------------------------------------------------------------------------------------------------
 
@@ -339,7 +351,11 @@ findSigOfBinds range = go
         case unLoc <$> findDeclContainingLoc (_start range) lsigs of
           Just sig' -> Just sig'
           Nothing -> do
+#if MIN_VERSION_ghc(9,11,0)
+            lHsBindLR <- findDeclContainingLoc (_start range) binds
+#else
             lHsBindLR <- findDeclContainingLoc (_start range) (bagToList binds)
+#endif
             findSigOfBind range (unLoc lHsBindLR)
     go _ = Nothing
 
@@ -420,7 +436,11 @@ isUnusedImportedId
   modName
   importSpan
     | occ <- mkVarOcc identifier,
+#if MIN_VERSION_ghc(9,11,0)
+      impModsVals <- importedByUser . concat $ imp_mods,
+#else
       impModsVals <- importedByUser . concat $ moduleEnvElts imp_mods,
+#endif
       Just rdrEnv <-
         listToMaybe
           [ imv_all_exports
@@ -659,7 +679,11 @@ suggestDeleteUnusedBinding
         name
         (L _ Match{m_grhss=GRHSs{grhssLocalBinds}}) = do
         let go bag lsigs =
+#if MIN_VERSION_ghc(9,11,0)
+                if null bag
+#else
                 if isEmptyBag bag
+#endif
                 then []
                 else concatMap (findRelatedSpanForHsBind indexedContent name lsigs) bag
         case grhssLocalBinds of
@@ -1700,13 +1724,22 @@ findPositionAfterModuleName ps _hsmodName' = do
 #endif
         EpAnn _ annsModule _ -> do
             -- Find the first 'where'
+#if MIN_VERSION_ghc(9,11,0)
+            whereLocation <- filterWhere $ am_where annsModule
+#else
             whereLocation <- listToMaybe . mapMaybe filterWhere $ am_main annsModule
+#endif
             epaLocationToLine whereLocation
 #if !MIN_VERSION_ghc(9,9,0)
         EpAnnNotUsed -> Nothing
 #endif
+#if MIN_VERSION_ghc(9,11,0)
+    filterWhere (EpTok loc) = Just loc
+    filterWhere _ = Nothing
+#else
     filterWhere (AddEpAnn AnnWhere loc) = Just loc
     filterWhere _                       = Nothing
+#endif
 
     epaLocationToLine :: EpaLocation -> Maybe Int
 #if MIN_VERSION_ghc(9,9,0)
@@ -1719,12 +1752,19 @@ findPositionAfterModuleName ps _hsmodName' = do
     epaLocationToLine (EpaSpan sp)
       = Just . srcLocLine . realSrcSpanEnd $ sp
 #endif
+#if MIN_VERSION_ghc(9,11,0)
+    epaLocationToLine (EpaDelta _ (SameLine _) priorComments) = Just $ sumCommentsOffset priorComments
+    -- 'priorComments' contains the comments right before the current EpaLocation
+    -- Summing line offset of priorComments is necessary, as 'line' is the gap between the last comment and
+    -- the current AST node
+    epaLocationToLine (EpaDelta _ (DifferentLine line _) priorComments) = Just (line + sumCommentsOffset priorComments)
+#else
     epaLocationToLine (EpaDelta (SameLine _) priorComments) = Just $ sumCommentsOffset priorComments
     -- 'priorComments' contains the comments right before the current EpaLocation
     -- Summing line offset of priorComments is necessary, as 'line' is the gap between the last comment and
     -- the current AST node
     epaLocationToLine (EpaDelta (DifferentLine line _) priorComments) = Just (line + sumCommentsOffset priorComments)
-
+#endif
     sumCommentsOffset :: [LEpaComment] -> Int
 #if MIN_VERSION_ghc(9,9,0)
     sumCommentsOffset = sum . fmap (\(L anchor _) -> anchorOpLine anchor)
@@ -1732,7 +1772,12 @@ findPositionAfterModuleName ps _hsmodName' = do
     sumCommentsOffset = sum . fmap (\(L anchor _) -> anchorOpLine (anchor_op anchor))
 #endif
 
-#if MIN_VERSION_ghc(9,9,0)
+#if MIN_VERSION_ghc(9,11,0)
+    anchorOpLine :: EpaLocation' a -> Int
+    anchorOpLine EpaSpan{}                           = 0
+    anchorOpLine (EpaDelta _ (SameLine _) _)           = 0
+    anchorOpLine (EpaDelta _ (DifferentLine line _) _) = line
+#elif MIN_VERSION_ghc(9,9,0)
     anchorOpLine :: EpaLocation' a -> Int
     anchorOpLine EpaSpan{}                           = 0
     anchorOpLine (EpaDelta (SameLine _) _)           = 0

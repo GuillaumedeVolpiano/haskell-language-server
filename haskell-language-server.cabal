@@ -580,13 +580,13 @@ flag rename
   manual:      True
 
 common rename
-  if flag(rename) && (impl(ghc < 9.11) || flag(ignore-plugins-ghc-bounds))
+  if flag(rename)
     build-depends: haskell-language-server:hls-rename-plugin
     cpp-options: -Dhls_rename
 
 library hls-rename-plugin
   import:           defaults, pedantic, warnings
-  if !flag(rename) || (impl(ghc > 9.11) && !flag(ignore-plugins-ghc-bounds))
+  if !flag(rename)
     buildable: False
   exposed-modules:  Ide.Plugin.Rename
   hs-source-dirs:   plugins/hls-rename-plugin/src
@@ -610,7 +610,7 @@ library hls-rename-plugin
 
 test-suite hls-rename-plugin-tests
   import:           defaults, pedantic, test-defaults, warnings
-  if !flag(rename) || (impl(ghc > 9.11) && !flag(ignore-plugins-ghc-bounds))
+  if !flag(rename)
     buildable: False
   type:             exitcode-stdio-1.0
   hs-source-dirs:   plugins/hls-rename-plugin/test
@@ -932,13 +932,13 @@ flag splice
   manual:      True
 
 common splice
-  if flag(splice) && (impl(ghc < 9.10) || flag(ignore-plugins-ghc-bounds))
+  if flag(splice)
     build-depends: haskell-language-server:hls-splice-plugin
     cpp-options: -Dhls_splice
 
 library hls-splice-plugin
   import:           defaults, pedantic, warnings
-  if !(flag(splice) && (impl(ghc < 9.10) || flag(ignore-plugins-ghc-bounds)))
+  if !flag(splice)
     buildable: False
   exposed-modules:
     Ide.Plugin.Splice
@@ -966,7 +966,7 @@ library hls-splice-plugin
 
 test-suite hls-splice-plugin-tests
   import:           defaults, pedantic, test-defaults, warnings
-  if !(flag(splice) && (impl(ghc < 9.10) || flag(ignore-plugins-ghc-bounds)))
+  if !flag(splice)
     buildable: False
   type:             exitcode-stdio-1.0
   hs-source-dirs:   plugins/hls-splice-plugin/test
@@ -1596,13 +1596,13 @@ flag refactor
   manual:      True
 
 common refactor
-  if flag(refactor) && (impl(ghc < 9.11) || flag(ignore-plugins-ghc-bounds))
+  if flag(refactor) 
     build-depends: haskell-language-server:hls-refactor-plugin
     cpp-options: -Dhls_refactor
 
 library hls-refactor-plugin
   import:           defaults, pedantic, warnings
-  if !flag(refactor) || (impl(ghc > 9.11) && !flag(ignore-plugins-ghc-bounds))
+  if !flag(refactor)
     buildable: False
   exposed-modules:  Development.IDE.GHC.ExactPrint
                     Development.IDE.GHC.Compat.ExactPrint
@@ -1661,7 +1661,7 @@ library hls-refactor-plugin
 
 test-suite hls-refactor-plugin-tests
   import:           defaults, pedantic, test-defaults, warnings
-  if !flag(refactor) || (impl(ghc > 9.11) && !flag(ignore-plugins-ghc-bounds))
+  if !flag(refactor)
     buildable: False
   type:             exitcode-stdio-1.0
   hs-source-dirs:   plugins/hls-refactor-plugin/test

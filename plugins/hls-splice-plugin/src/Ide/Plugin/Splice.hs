@@ -68,7 +68,6 @@ import           GHC.Parser.Annotation                 (EpAnn (..))
 import           GHC.Parser.Annotation                 (SrcSpanAnn' (..))
 #endif
 
-
 descriptor :: PluginId -> PluginDescriptor IdeState
 descriptor plId =
     (defaultPluginDescriptor plId "Provides a code action to evaluate a TemplateHaskell splice")

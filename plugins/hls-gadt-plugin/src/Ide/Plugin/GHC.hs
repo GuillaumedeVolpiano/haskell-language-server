@@ -7,14 +7,15 @@
 {-# OPTIONS_GHC -Wno-overlapping-patterns #-}
 module Ide.Plugin.GHC where
 
+#if !MIN_VERSION_ghc(9,11,0)
 import           Data.Functor                            ((<&>))
+#endif
 import           Data.List.Extra                         (stripInfix)
 import qualified Data.Text                               as T
 import           Development.IDE
 import           Development.IDE.GHC.Compat
 import           Development.IDE.GHC.Compat.ExactPrint
-import           GHC.Parser.Annotation                   (AddEpAnn (..),
-                                                          DeltaPos (..),
+import           GHC.Parser.Annotation                   (DeltaPos (..),
                                                           EpAnn (..),
                                                           EpAnnComments (EpaComments))
 import           Ide.PluginUtils                         (subRange)
@@ -44,6 +45,11 @@ import           GHC.Parser.Annotation                   (EpUniToken (..),
 import           Language.Haskell.GHC.ExactPrint.Utils   (showAst)
 #endif
 
+#if MIN_VERSION_ghc(9,11,0)
+import GHC.Types.SrcLoc (UnhelpfulSpanReason (..))
+#else
+import GHC.Parser.Annotation (AddEpAnn (..))
+#endif
 
 type GP = GhcPass Parsed
 
@@ -97,7 +103,9 @@ h98ToGADTConDecl ::
 h98ToGADTConDecl dataName tyVars ctxt = \case
     ConDeclH98{..} ->
         ConDeclGADT
-#if MIN_VERSION_ghc(9,9,0)
+#if MIN_VERSION_ghc(9,11,0)
+            (AnnConDeclGADT [] [] NoEpUniTok)
+#elif MIN_VERSION_ghc(9,9,0)
             (NoEpUniTok, con_ext)
 #else
             con_ext
@@ -218,7 +226,11 @@ prettyGADTDecl df decl =
 
         -- Make every data constructor start with a new line and 2 spaces
         adjustCon :: LConDecl GP -> LConDecl GP
-#if MIN_VERSION_ghc(9,9,0)
+#if MIN_VERSION_ghc(9,11,0)
+        adjustCon (L _ r) =
+            let delta = EpaDelta (UnhelpfulSpan UnhelpfulNoLocationInfo) (DifferentLine 1 3) []
+            in L (EpAnn delta (AnnListItem []) (EpaComments [])) r
+#elif MIN_VERSION_ghc(9,9,0)
         adjustCon (L _ r) =
             let delta = EpaDelta (DifferentLine 1 3) []
             in L (EpAnn delta (AnnListItem []) (EpaComments [])) r
@@ -229,16 +241,20 @@ prettyGADTDecl df decl =
 #endif
 
         -- Adjust where annotation to the same line of the type constructor
+#if MIN_VERSION_ghc(9,11,0)
+        -- tcdDext is just a placeholder in ghc-9.12
+        adjustWhere tcdDExt = tcdDExt
+#else
         adjustWhere tcdDExt = tcdDExt <&>
 #if !MIN_VERSION_ghc(9,9,0)
             map
 #endif
-            (\(AddEpAnn ann l) ->
+(\(AddEpAnn ann l) ->
             if ann == AnnWhere
                 then AddEpAnn AnnWhere d1
                 else AddEpAnn ann l
             )
-
+#endif
         -- Remove the first extra line if exist
         removeExtraEmptyLine s = case stripInfix "\n\n" s of
             Just (x, xs) -> x <> "\n" <> xs
@@ -257,6 +273,10 @@ noUsed = EpAnnNotUsed
 #endif
 
 pattern UserTyVar' :: LIdP pass -> HsTyVarBndr flag pass
+#if MIN_VERSION_ghc(9,11,0)
+pattern UserTyVar' s <- HsTvb _ _ (HsBndrVar _ s) _
+#else
 pattern UserTyVar' s <- UserTyVar _ _ s
+#endif
 
 implicitTyVars = wrapXRec @GP mkHsOuterImplicit

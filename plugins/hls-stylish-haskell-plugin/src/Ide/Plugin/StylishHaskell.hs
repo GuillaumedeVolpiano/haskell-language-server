@@ -81,7 +81,11 @@ loadConfigFrom :: FilePath -> IO Config
 loadConfigFrom file = do
   currDir <- getCurrentDirectory
   setCurrentDirectory (takeDirectory file)
+#if MIN_VERSION_stylish_haskell(0,14,7)
+  config <- loadConfig (makeVerbose False) SearchFromCurrentDirectory
+#else
   config <- loadConfig (makeVerbose False) Nothing
+#endif
   setCurrentDirectory currDir
   pure config
 
